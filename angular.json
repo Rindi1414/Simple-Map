@@ -80,7 +80,6 @@
               "buildTarget": "app:build:development"
             },
             "ci": {
-              "progress": false
             }
           },
           "defaultConfiguration": "development"
@@ -102,8 +101,8 @@
             "assets": [
               {
                 "glob": "**/*",
-                "input": "src/assets",
-                "output": "assets"
+                "input": "node_modules/@arcgis/core/assets",
+                "output": "/assets/"
               },
               {
                 "glob": "**/*.svg",
