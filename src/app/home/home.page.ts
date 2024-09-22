@@ -1,10 +1,10 @@
 import { Component, OnInit } from '@angular/core';
-import { Geolocation } from '@capacitor/geolocation';
 import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
 import Graphic from '@arcgis/core/Graphic';
-import Point from '@arcgis/core/geometry/Point'; // Impor Point
-import PictureMarkerSymbol from '@arcgis/core/symbols/PictureMarkerSymbol'; // Impor PictureMarkerSymbol
+import Point from '@arcgis/core/geometry/Point';
+import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol';
+import ImageryLayer from '@arcgis/core/layers/ImageryLayer';
 
 @Component({
   selector: 'app-home',
@@ -12,54 +12,89 @@ import PictureMarkerSymbol from '@arcgis/core/symbols/PictureMarkerSymbol'; // I
   styleUrls: ['home.page.scss'],
 })
 export class HomePage implements OnInit {
-  private latitude: number | any;
-  private longitude: number | any;
+  mapView: MapView | any;
+  userLocationGraphic : Graphic | any;
+  selectedBasemap: string = "topo-vector";
 
-  constructor() {}
+  constructor () {}
 
-  public async ngOnInit() {
-    try {
-      const position = await Geolocation.getCurrentPosition();
-      this.latitude = position.coords.latitude;
-      this.longitude = position.coords.longitude;
+  async ngOnInit() {
+    this.initializeMap();
+  }
 
-      console.log('Latitude:', this.latitude);
-      console.log('Longitude:', this.longitude);
+  async initializeMap() {
+    const map = new Map({
+      basemap: this.selectedBasemap
+    });
 
-      // Buat instance peta
-      const map = new Map({
-        basemap: "topo-vector"
+    this.mapView = new MapView({
+      container: "container",
+      map: map,
+      zoom: 6, // Zoom level adjusted for better view of Kansas
+      center: [-98.781, 39.970] // Center map over Kansas
+    });
+
+    let weatherServiceFL = new ImageryLayer({ url: WeatherServiceURL });
+    map.add(weatherServiceFL);
+
+    this.addWeatherPointMarker();
+
+    setInterval(this.updateUserLocationOnMap.bind(this), 10000);
+  }
+
+  async changeBasemap() {
+    if (this.mapView) {
+      this.mapView.map.basemap = this.selectedBasemap;
+    }
+  }
+
+  addWeatherPointMarker() {
+    // Create a point in Kansas, USA
+    let point = new Point({
+      longitude: -98.781, // Longitude for Kansas
+      latitude: 39.970   // Latitude for Kansas
+    });
+
+    // Create a symbol for the point
+    let markerSymbol = new SimpleMarkerSymbol({
+      color: [255, 0, 0], // Red color
+      size: '12px', // Size of the marker
+      outline: {
+        color: [255, 255, 255], // White outline
+        width: 2
+      }
+    });
+
+    // Create a graphic and add it to the mapView
+    let pointGraphic = new Graphic({
+      geometry: point,
+      symbol: markerSymbol
+    });
+
+    this.mapView.graphics.add(pointGraphic);
+  }
+
+  async getLocationService(): Promise<number[]> {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition((resp) => {
+        resolve([resp.coords.latitude, resp.coords.longitude]);
       });
+    });
+  }
 
-      const view = new MapView({
-        container: "container",
-        map: map,
-        zoom: 14, // Adjust zoom level as needed
-        center: [this.longitude, this.latitude] // Longitude, Latitude
+  async updateUserLocationOnMap() {
+    let latLng = await this.getLocationService();
+    let geom = new Point({ latitude: latLng[0], longitude: latLng[1] });
+    if (this.userLocationGraphic) {
+      this.userLocationGraphic.geometry = geom;
+    } else {
+      this.userLocationGraphic = new Graphic({
+          symbol: new SimpleMarkerSymbol(),
+          geometry: geom,
       });
-
-      // Gunakan class Point dari ArcGIS API
-      const point = new Point({
-        longitude: this.longitude,
-        latitude: this.latitude
-      });
-
-      // Definisikan PictureMarkerSymbol dengan gambar rumah
-      const markerSymbol = new PictureMarkerSymbol({
-        url: 'assets/download.png', // Path relatif ke gambar
-        width: '32px', // Lebar simbol
-        height: '32px' // Tinggi simbol
-      });
-
-      const pointGraphic = new Graphic({
-        geometry: point,  // Menggunakan class Point sebagai geometri
-        symbol: markerSymbol
-      });
-
-      // Tambahkan marker ke peta
-      view.graphics.add(pointGraphic);
-    } catch (error) {
-      console.error("Error getting location or adding marker:", error);
+      this.mapView.graphics.add(this.userLocationGraphic);
     }
   }
 }
+
+const WeatherServiceURL = "https://mapservices.weather.noaa.gov/eventdriven/rest/services/radar/radar_base_reflectivity_time/ImageServer";
